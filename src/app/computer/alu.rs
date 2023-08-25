@@ -1,5 +1,5 @@
-use crate::computer::Computer;
-use crate::computer::micro_instruction::MicroInstruction;
+use super::Computer;
+use super::micro_instruction::MicroInstruction;
 
 pub fn equ_buss(computer: &mut Computer, micro: &MicroInstruction) {
     computer.accumulator_reg = computer.buss;

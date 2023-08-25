@@ -1,11 +1,25 @@
-mod computer;
+use std::{error::Error, io};
+use crossterm::{
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::prelude::*;
 
-use computer::Computer;
+mod app;
 
-fn main() {
-    //let computer = Computer::new();
-    println!("Hello, world!");
-    let a = 0b10010100 as u8;
-    let b = 0b10010100 as u8;
-    println!("{:b} {:b}", (a >> 1) as i8, (b as i8) >> 1);
+fn main() -> Result<(), Box<dyn Error>> {
+    let stdout = io::stdout();
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    enable_raw_mode()?;
+    execute!(terminal.backend_mut(), EnterAlternateScreen)?;
+
+    app::run(&mut terminal)?;
+
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+    
+    Ok(())
 }

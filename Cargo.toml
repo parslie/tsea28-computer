@@ -9,3 +9,5 @@ overflow-checks = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+crossterm = "0.27.0"
+ratatui = { version = "0.22.0", features = ["all-widgets"] }
