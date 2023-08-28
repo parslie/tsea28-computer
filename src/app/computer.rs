@@ -3,20 +3,28 @@ mod micro_instruction;
 mod flags;
 mod alu;
 
+use std::{path::PathBuf, fs::OpenOptions, io::{Write, Read}, os::unix::prelude::FileExt};
+
+use serde::{Serialize, Deserialize};
+use serde_big_array::BigArray;
+
 use program_instruction::ProgramInstruction;
 use micro_instruction::MicroInstruction;
 use flags::Flags;
 
+#[derive(Serialize, Deserialize)]
 pub struct Computer {
     buss: u16,
     pub address_reg: u8,
     pub program_counter: u8,
+    #[serde(with = "BigArray")]
     pub program_memory: [u16; 256],
     pub instruction_reg: u16,
     pub k1: [u8; 16],
     pub k2: [u8; 4],
     pub micro_counter: u8,
     pub saved_micro_counter: u8,
+    #[serde(with = "BigArray")]
     pub micro_memory: [u32; 128],
     pub accumulator_reg: u16,
     pub help_reg: u16,
@@ -46,6 +54,31 @@ impl Computer {
             registers: [0; 4],
             multiplexer: 0,
         }
+    }
+
+    pub fn load(self, file_path: &PathBuf) -> Self {
+        let mut file = OpenOptions::new()
+            .read(true)
+            .open(file_path)
+            .unwrap(); // TODO: implement proper error handling
+
+        let mut toml = String::new();
+        file.read_to_string(&mut toml).unwrap(); // TODO: implement proper error handling
+        
+        toml::from_str(toml.as_str()).unwrap()
+    }
+
+    pub fn save(&self, file_path: &PathBuf) {
+        let toml = toml::to_string(&self).unwrap();
+
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .truncate(true)
+            .open(file_path)
+            .unwrap(); // TODO: implement proper error handling
+
+        file.write_all(toml.as_bytes()).unwrap(); // TODO: implement proper error handling
     }
 
     fn process_seq(&mut self, program: &ProgramInstruction, micro: &MicroInstruction, flags: &Flags) {

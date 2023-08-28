@@ -2,7 +2,7 @@ mod computer;
 mod rendering;
 mod functionality;
 
-use std::{error::Error, time::Duration};
+use std::{error::Error, time::Duration, path::PathBuf};
 use crossterm::event;
 use ratatui::prelude::*;
 
@@ -45,12 +45,17 @@ pub fn run<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn Error>>
         selected: 0,
     };
 
+    let path = PathBuf::from("test.toml"); // TODO: for testing, remove later
+    data.computer = data.computer.load(&path); // TODO: for testing, remove later
+
     while data.state != State::Quitting {
         terminal.draw(|frame| render(frame, &data))?;
         if event::poll(poll_duration)? {
             handle_event(event::read()?, &mut data);
         }
     }
+    
+    data.computer.save(&path); // TODO: for testing, remove later
 
     Ok(())
 }
