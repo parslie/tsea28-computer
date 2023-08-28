@@ -1,16 +1,11 @@
-mod program_instruction;
-mod micro_instruction;
-mod flags;
 mod alu;
-
-use std::{path::PathBuf, fs::OpenOptions, io::{Write, Read}, os::unix::prelude::FileExt};
+mod flags;
+mod instruction;
 
 use serde::{Serialize, Deserialize};
 use serde_big_array::BigArray;
 
-use program_instruction::ProgramInstruction;
-use micro_instruction::MicroInstruction;
-use flags::Flags;
+use self::{instruction::{ProgramInstruction, MicroInstruction}, flags::Flags};
 
 #[derive(Serialize, Deserialize)]
 pub struct Computer {
@@ -36,7 +31,7 @@ pub struct Computer {
 
 impl Computer {
     pub fn new() -> Self {
-        Computer {
+        Self {
             buss: 0,
             address_reg: 0,
             program_counter: 0,
@@ -56,29 +51,96 @@ impl Computer {
         }
     }
 
-    pub fn load(self, file_path: &PathBuf) -> Self {
-        let mut file = OpenOptions::new()
-            .read(true)
-            .open(file_path)
-            .unwrap(); // TODO: implement proper error handling
+    // TODO: reimplement save/load
 
-        let mut toml = String::new();
-        file.read_to_string(&mut toml).unwrap(); // TODO: implement proper error handling
-        
-        toml::from_str(toml.as_str()).unwrap()
+    pub fn perform_cycle(&mut self) {
+        let program = ProgramInstruction::new(self.instruction_reg);
+        let micro = MicroInstruction::new(self.micro_memory[self.micro_counter as usize]);
+        let flags = Flags::new(self.flags);
+
+        self.process_s(&program, &micro);
+        self.process_tb(&micro);
+        self.process_fb(&micro);
+        self.process_seq(&program, &micro, &flags); // TODO: påverkas flaggor före eller efter? (process_lc och process_alu påverkar)
+        self.process_alu(&micro);
+        self.process_lc(&micro);
+        self.process_p(&micro); // TODO: om man sätter PC med bussen, vad händer?
     }
 
-    pub fn save(&self, file_path: &PathBuf) {
-        let toml = toml::to_string(&self).unwrap();
+    fn process_alu(&mut self, micro: &MicroInstruction) {
+        match micro.alu {
+            0b0001 => alu::equ_buss(self),
+            0b0010 => alu::equ_buss_ones_comp(self),
+            0b0011 => alu::equ_zero(self),
+            0b0100 => alu::plus_buss(self, true),
+            0b0101 => alu::minus_buss(self),
+            0b0110 => alu::and_buss(self),
+            0b0111 => alu::or_buss(self),
+            0b1000 => alu::plus_buss(self, false),
+            0b1001 => alu::logic_shift_left_16(self),
+            0b1010 => alu::logic_shift_left_32(self),
+            0b1011 => alu::arithmetic_shift_right_16(self),
+            0b1100 => alu::arithmetic_shift_right_32(self),
+            0b1101 => alu::logic_shift_right_16(self),
+            0b1110 => alu::rotate_left_16(self),
+            0b1111 => alu::rotate_left_32(self),
+            _ => (),
+        }
+    }
 
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .truncate(true)
-            .open(file_path)
-            .unwrap(); // TODO: implement proper error handling
+    fn process_tb(&mut self, micro: &MicroInstruction) {
+        self.buss = match micro.tb {
+            0b001 => self.instruction_reg & 0x00ff,
+            0b010 => self.program_memory[self.address_reg as usize],
+            0b011 => self.program_counter as u16,
+            0b100 => self.accumulator_reg,
+            0b101 => self.help_reg,
+            0b110 => self.registers[self.multiplexer as usize],
+            0b111 => todo!("implement tb = 0b111"),
+            _ => self.buss,
+        }
+    }
 
-        file.write_all(toml.as_bytes()).unwrap(); // TODO: implement proper error handling
+    fn process_fb(&mut self, micro: &MicroInstruction) {
+        if micro.alu == 0 {
+            // TODO: borde det här göras om alu inte är 0b0000?
+            match micro.fb {
+                0b001 => self.instruction_reg = self.buss,
+                0b010 => self.program_memory[self.address_reg as usize] = self.buss,
+                0b011 => self.program_counter = self.buss as u8,
+                0b101 => self.help_reg = self.buss,
+                0b110 => self.registers[self.multiplexer as usize] = self.buss,
+                0b111 => self.address_reg = self.buss as u8,
+                _ => (),
+            }
+        }
+    }
+
+    fn process_s(&mut self, program: &ProgramInstruction, micro: &MicroInstruction) {
+        self.multiplexer = if micro.s == 0 {
+            program.grx
+        } else {
+            program.m
+        }
+    }
+
+    fn process_p(&mut self, micro: &MicroInstruction) {
+        if micro.p == 1 {
+            self.program_counter += 1;
+        }
+    }
+
+    fn process_lc(&mut self, micro: &MicroInstruction) {
+        match micro.lc {
+            0b01 => self.loop_counter -= 1,
+            0b10 => self.loop_counter = self.buss as u8,
+            0b11 => self.loop_counter = 0x7f | micro.uadr,
+            _ => (),
+        }
+
+        if self.loop_counter == 0 {
+            self.flags &= 0b11111110;
+        }
     }
 
     fn process_seq(&mut self, program: &ProgramInstruction, micro: &MicroInstruction, flags: &Flags) {
@@ -112,97 +174,5 @@ impl Computer {
             0b1111 => self.micro_counter = 0, // TODO: avbryt exekvering
             _ => (),
         }
-    }
-
-    fn process_s(&mut self, program: &ProgramInstruction, micro: &MicroInstruction) {
-        self.multiplexer = if micro.s == 0 {
-            program.grx
-        } else {
-            program.m
-        }
-    }
-
-    fn process_p(&mut self, micro: &MicroInstruction) {
-        if micro.p == 1 {
-            self.program_counter += 1;
-        }
-    }
-
-    fn process_lc(&mut self, micro: &MicroInstruction) {
-        match micro.lc {
-            0b01 => self.loop_counter -= 1,
-            0b10 => self.loop_counter = self.buss as u8,
-            0b11 => self.loop_counter = 0x7f | micro.uadr,
-            _ => (),
-        }
-
-        if self.loop_counter == 0 {
-            self.flags &= 0b11111110;
-        }
-    }
-
-    fn process_tb(&mut self, micro: &MicroInstruction) {
-        self.buss = match micro.tb {
-            0b001 => self.instruction_reg & 0x00ff,
-            0b010 => self.program_memory[self.address_reg as usize],
-            0b011 => self.program_counter as u16,
-            0b100 => self.accumulator_reg,
-            0b101 => self.help_reg,
-            0b110 => self.registers[self.multiplexer as usize],
-            0b111 => todo!("implement tb = 0b111"),
-            _ => self.buss,
-        }
-    }
-
-    fn process_fb(&mut self, micro: &MicroInstruction) {
-        if micro.alu == 0 {
-            // TODO: borde det här göras om alu inte är 0b0000?
-            match micro.fb {
-                0b001 => self.instruction_reg = self.buss,
-                0b010 => self.program_memory[self.address_reg as usize] = self.buss,
-                0b011 => self.program_counter = self.buss as u8,
-                0b101 => self.help_reg = self.buss,
-                0b110 => self.registers[self.multiplexer as usize] = self.buss,
-                0b111 => self.address_reg = self.buss as u8,
-                _ => (),
-            }
-        }
-    }
-
-    fn process_alu(&mut self, micro: &MicroInstruction) {
-        match micro.alu {
-            0b0001 => alu::equ_buss(self, micro),
-            0b0010 => alu::equ_buss_ones_comp(self, micro),
-            0b0011 => alu::equ_zero(self, micro),
-            0b0100 => alu::plus_buss(self, micro, true),
-            0b0101 => alu::minus_buss(self, micro),
-            0b0110 => alu::and_buss(self, micro),
-            0b0111 => alu::or_buss(self, micro),
-            0b1000 => alu::plus_buss(self, micro, false),
-            0b1001 => alu::logic_shift_left_16(self, micro),
-            0b1010 => alu::logic_shift_left_32(self, micro),
-            0b1011 => alu::arithmetic_shift_right_16(self, micro),
-            0b1100 => alu::arithmetic_shift_right_32(self, micro),
-            0b1101 => alu::logic_shift_right_16(self, micro),
-            0b1110 => alu::rotate_left_16(self, micro),
-            0b1111 => alu::rotate_left_32(self, micro),
-            _ => (),
-        }
-    }
-
-    pub fn perform_cycle(&mut self) {
-        let micro_instruction = self.micro_memory[self.micro_counter as usize];
-
-        let program = ProgramInstruction::new(self.instruction_reg);
-        let micro = MicroInstruction::new(micro_instruction);
-        let flags = Flags::new(self.flags);
-
-        self.process_s(&program, &micro);
-        self.process_tb(&micro);
-        self.process_fb(&micro);
-        self.process_seq(&program, &micro, &flags); // TODO: påverkas flaggor före eller efter? (process_lc och process_alu påverkar)
-        self.process_alu(&micro);
-        self.process_lc(&micro);
-        self.process_p(&micro); // TODO: om man sätter PC med bussen, vad händer?
     }
 }

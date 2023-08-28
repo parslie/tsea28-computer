@@ -1,11 +1,15 @@
-use std::{error::Error, io};
+mod app;
+
+use std::{error::Error, io, time::Duration};
+
 use crossterm::{
+    event,
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::prelude::*;
 
-mod app;
+use app::App;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let stdout = io::stdout();
@@ -15,7 +19,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
     execute!(terminal.backend_mut(), EnterAlternateScreen)?;
 
-    app::run(&mut terminal)?;
+    let mut app = App::new();
+
+    while !app.is_exiting() {
+        terminal.draw(|frame| app.render(frame))?;
+        if event::poll(Duration::from_millis(250))? {
+            app.update(event::read()?);
+        }
+    }
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;

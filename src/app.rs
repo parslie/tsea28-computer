@@ -1,61 +1,59 @@
 mod computer;
-mod rendering;
-mod functionality;
+mod update;
+mod render;
 
-use std::{error::Error, time::Duration, path::PathBuf};
-use crossterm::event;
-use ratatui::prelude::*;
-
-use self::{computer::Computer, functionality::handle_event, rendering::render};
+use self::computer::Computer;
 
 #[derive(PartialEq)]
-pub enum State { Idling, Quitting }
-
-pub struct Data {
-    state: State,
-    computer: Computer,
-    pm_offset: u8,
-    pm_index: u8,
-    grx_offset: u8,
-    grx_index: u8,
-    k1_offset: u8,
-    k1_index: u8,
-    k2_offset: u8,
-    k2_index: u8,
-    um_offset: u8,
-    um_index: u8,
-    selected: u8,
+enum State {
+    Idling,
+    Exiting,
 }
 
-pub fn run<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn Error>> {
-    let poll_duration = Duration::from_millis(250);
-    let mut data: Data = Data {
-        state: State::Idling,
-        computer: Computer::new(),
-        pm_offset: 0,
-        pm_index: 0,
-        grx_offset: 0,
-        grx_index: 0,
-        k1_offset: 0,
-        k1_index: 0,
-        k2_offset: 0,
-        k2_index: 0,
-        um_offset: 0,
-        um_index: 0,
-        selected: 0,
-    };
+pub struct App {
+    state: State,
+    computer: Computer,
 
-    let path = PathBuf::from("test.toml"); // TODO: for testing, remove later
-    data.computer = data.computer.load(&path); // TODO: for testing, remove later
+    pm_offset: usize,
+    pm_index: usize,
 
-    while data.state != State::Quitting {
-        terminal.draw(|frame| render(frame, &data))?;
-        if event::poll(poll_duration)? {
-            handle_event(event::read()?, &mut data);
+    k1_offset: usize,
+    k1_index: usize,
+
+    k2_offset: usize,
+    k2_index: usize,
+
+    um_offset: usize,
+    um_index: usize,
+
+    grx_offset: usize,
+    grx_index: usize,
+}
+
+impl App {
+    pub fn new() -> Self {
+        Self {
+            state: State::Idling,
+            computer: Computer::new(),
+
+            pm_offset: 0,
+            pm_index: 0,
+        
+            k1_offset: 0,
+            k1_index: 0,
+        
+            k2_offset: 0,
+            k2_index: 0,
+        
+            um_offset: 0,
+            um_index: 0,
+        
+            grx_offset: 0,
+            grx_index: 0,
         }
     }
-    
-    data.computer.save(&path); // TODO: for testing, remove later
 
-    Ok(())
+    pub fn is_exiting(&self) -> bool {
+        self.state == State::Exiting
+    }
 }
