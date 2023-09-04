@@ -6,6 +6,8 @@ use std::{error::Error, time::Duration};
 use crossterm::event::{self, Event, KeyModifiers, KeyCode};
 use ratatui::prelude::*;
 
+use crate::types::Backend;
+
 use self::{computer::Computer, widget::CompositeWidget};
 
 #[derive(PartialEq)]
@@ -29,11 +31,11 @@ fn update(event: Event, data: &mut Data) {
     }
 }
 
-fn render<B: Backend>(frame: &mut Frame<B>, data: &Data) {
+fn render(frame: &mut Frame<Backend>, data: &Data) {
     data.computer.render(frame, frame.size());
 }
 
-pub fn run<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn Error>> {
+pub fn run(terminal: &mut Terminal<Backend>) -> Result<(), Box<dyn Error>> {
     let poll_duration = Duration::from_millis(500);
 
     let mut data = Data {
