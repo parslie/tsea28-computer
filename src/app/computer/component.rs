@@ -1,3 +1,5 @@
+pub mod value8;
+
 use crate::app::widget::CompositeWidget;
 
 pub trait Component: CompositeWidget {

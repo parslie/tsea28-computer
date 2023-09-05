@@ -1,27 +1,29 @@
 use crossterm::event::{KeyEvent, KeyCode};
-use ratatui::{prelude::*, widgets::{Block, Borders, Paragraph}};
+use ratatui::{prelude::*, widgets::{Borders, Block, Paragraph}};
 
 use crate::{app::widget::CompositeWidget, types::Backend};
 
-use super::component::Component;
+use super::Component;
 
-pub struct AddressRegister {
+pub struct Value8 {
     value: u8,
     cursor: u8,
     is_selected: bool,
+    title: &'static str,
 }
 
-impl AddressRegister {
-    pub fn new() -> Self {
+impl Value8 {
+    pub fn new(title: &'static str) -> Self {
         Self {
             value: 0b_0000_0000,
             cursor: 7,
             is_selected: false,
+            title: title,
         }
     }
 }
 
-impl CompositeWidget for AddressRegister {
+impl CompositeWidget for Value8 {
     fn update(&mut self, key: KeyEvent) {
         if key.code == KeyCode::Left && self.cursor < 7 {
             self.cursor += 1;
@@ -39,7 +41,7 @@ impl CompositeWidget for AddressRegister {
     fn render(&self, frame: &mut Frame<Backend>, area: Rect) {
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" ASR(111) ");
+            .title(self.title);
 
         let text = format!("{:0>8b}", self.value);
 
@@ -62,7 +64,7 @@ impl CompositeWidget for AddressRegister {
     }
 }
 
-impl Component for AddressRegister {
+impl Component for Value8 {
     fn on_select(&mut self) {
         self.is_selected = true;
     }

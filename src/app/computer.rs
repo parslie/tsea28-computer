@@ -1,28 +1,27 @@
 mod component;
-mod address_reg;
 
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::prelude::*;
 
 use crate::types::Backend;
 
-use self::{address_reg::AddressRegister, component::Component};
+use self::component::{Component, value8::Value8};
 
 use super::widget::CompositeWidget;
 
 static COMPONENT_COUNT: u8 = 2;
 
 pub struct Computer {
-    address_reg: AddressRegister,
-    prog_counter: AddressRegister,
+    address_reg: Value8,
+    prog_counter: Value8,
     selection_idx: u8,
 }
 
 impl Computer {
     pub fn new() -> Self {
         let mut computer = Self {
-            address_reg: AddressRegister::new(),
-            prog_counter: AddressRegister::new(), // TODO: add actual PC, just here to test selecting different components
+            address_reg: Value8::new("ASR:111"),
+            prog_counter: Value8::new("PC:011"),
             selection_idx: 0,
         };
         computer.address_reg.on_select();
