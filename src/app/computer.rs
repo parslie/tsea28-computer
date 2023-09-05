@@ -48,7 +48,7 @@ impl CompositeWidget for Computer {
                 self.selection_idx + 1
             };
             self.get_selected_mut().on_select();
-        } else if self.selection_idx != 0 {
+        } else {
             self.get_selected_mut().update(key)
         }
     }
