@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::{prelude::*, widgets::*};
 
@@ -30,6 +32,49 @@ impl List16 {
             title: title,
         }
     }
+
+    fn adjust_offset(&mut self, height: usize) {
+        if self.cursor.1 < self.offset {
+            self.offset = self.cursor.1;
+        } else if self.cursor.1 >= self.offset + height {
+            self.offset = self.cursor.1 + 1 - height;
+        }
+    }
+
+    fn build_line(&self, width: usize, idx: usize) -> Line {
+        let address = idx;
+        let value = self.values[idx];
+
+        let mut spans = Vec::with_capacity(3);
+        spans.push(Span::from(format!("0x{:0>2x}", address)));
+
+        if width > 4 + 16 {
+            spans.push(Span::from(" ".repeat(width - 4 - 16)));
+        }
+
+        let value_text = format!("{:0>16b}", value);
+        if self.is_selected && idx == self.cursor.1 {
+            for (ch_idx, ch) in value_text.chars().enumerate() {
+                let style = if 15 - ch_idx as u8 == self.cursor.0 {
+                    Style::default().bg(Color::White).fg(Color::Black)
+                } else {
+                    Style::default()
+                };
+                let span = Span::from(ch.to_string()).set_style(style);
+                spans.push(span);
+            }
+        } else {
+            spans.push(Span::from(value_text));
+        }
+        
+        Line::from(spans)
+    }
+
+    fn value_range(&self, height: usize) -> Range<usize> {
+        let min_idx = self.offset;
+        let max_idx = usize::min(min_idx + height, self.size);
+        min_idx..max_idx
+    }
 }
 
 impl CompositeWidget for List16 {
@@ -50,7 +95,7 @@ impl CompositeWidget for List16 {
             self.remove_one();
         } else if key.code == KeyCode::Enter && self.cursor.1 < self.size - 1 {
             self.cursor.1 += 1;
-            self.cursor.0 = 7;
+            self.cursor.0 = 15;
         }
     }
 
@@ -60,54 +105,14 @@ impl CompositeWidget for List16 {
             .title(self.title);
         let inner_area = block.inner(area);
 
-        if self.cursor.1 < self.offset {
-            self.offset = self.cursor.1;
-        } else if self.cursor.1 >= self.offset + inner_area.height as usize {
-            self.offset = self.cursor.1 + 1 - inner_area.height as usize;
+        self.adjust_offset(inner_area.height as usize);
+
+        let mut lines = Vec::new();
+        for idx in self.value_range(inner_area.height as usize) {
+            lines.push(self.build_line(inner_area.width as usize, idx));
         }
 
-        let min_idx = self.offset;
-        let mut max_idx = min_idx + inner_area.height as usize;
-        max_idx = max_idx.clamp(min_idx, self.size);
-        let line_count = max_idx - min_idx;
-
-        let mut address_lines = Vec::with_capacity(line_count);
-        let mut value_lines = Vec::with_capacity(line_count);
-
-        // TODO: implement highlighting
-        for idx in min_idx..max_idx {
-            address_lines.push(Line::from(format!("0x{:0>2x}", idx)));
-            
-            if idx == self.cursor.1 && self.is_selected {
-                let mut line_spans = Vec::new();
-                let line_string = format!("{:0>16b}", self.values[idx]);
-                let mut line_idx: u8 = 16;
-                for c in line_string.chars() {
-                    let style = if line_idx - 1 == self.cursor.0 {
-                        Style::default().bg(Color::White).fg(Color::Black)
-                    } else {
-                        Style::default()
-                    };
-                    let line_span = Span::from(c.to_string()).set_style(style);
-                    line_spans.push(line_span);
-                    line_idx -= 1;
-                }
-                value_lines.push(Line::from(line_spans));
-            } else {
-                value_lines.push(Line::from(format!("{:0>16b}", self.values[idx])));
-            }
-        }
-        
-        let inner_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(4),
-                Constraint::Length(16),
-            ])
-            .split(inner_area);
-
-        frame.render_widget(Paragraph::new(address_lines), inner_layout[0]);
-        frame.render_widget(Paragraph::new(value_lines), inner_layout[1]);
+        frame.render_widget(Paragraph::new(lines), inner_area);
         frame.render_widget(block, area);
     }
 }
