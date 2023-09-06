@@ -38,7 +38,7 @@ impl CompositeWidget for Value8 {
         }
     }
 
-    fn render(&self, frame: &mut Frame<Backend>, area: Rect) {
+    fn render(&mut self, frame: &mut Frame<Backend>, area: Rect) {
         let block = Block::default()
             .borders(Borders::ALL)
             .title(self.title);
@@ -92,6 +92,7 @@ impl Component for Value8 {
     fn remove_one(&mut self) {
         let operand: u8 = 0b_1111_1111 ^ (1 << self.cursor);
         self.value &= operand;
+        // TODO: shift all LSBs left?
         if self.cursor < 7 {
             self.cursor += 1;
         }

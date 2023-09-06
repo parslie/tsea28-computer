@@ -31,7 +31,7 @@ fn update(event: Event, data: &mut Data) {
     }
 }
 
-fn render(frame: &mut Frame<Backend>, data: &Data) {
+fn render(frame: &mut Frame<Backend>, data: &mut Data) {
     data.computer.render(frame, frame.size());
 }
 
@@ -44,7 +44,7 @@ pub fn run(terminal: &mut Terminal<Backend>) -> Result<(), Box<dyn Error>> {
     };
 
     while data.state != State::Exiting {
-        terminal.draw(|frame| render(frame, &data))?;
+        terminal.draw(|frame| render(frame, &mut data))?;
         if event::poll(poll_duration)? {
             update(event::read()?, &mut data);
         }

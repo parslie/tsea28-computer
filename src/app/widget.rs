@@ -5,5 +5,5 @@ use crate::types::Backend;
 
 pub trait CompositeWidget {
     fn update(self: &mut Self, key: KeyEvent);
-    fn render(self: &Self, frame: &mut Frame<Backend>, area: Rect);
+    fn render(self: &mut Self, frame: &mut Frame<Backend>, area: Rect);
 }
