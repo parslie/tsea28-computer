@@ -8,7 +8,7 @@ use crate::{app::widget::CompositeWidget, types::Backend};
 use super::Component;
 
 pub struct List7 {
-    values: Vec<u8>,
+    pub values: Vec<u8>,
     size: usize,
     offset: usize,
     cursor: (u8, usize),

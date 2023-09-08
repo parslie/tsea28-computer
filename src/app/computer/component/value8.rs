@@ -6,7 +6,7 @@ use crate::{app::widget::CompositeWidget, types::Backend};
 use super::Component;
 
 pub struct Value8 {
-    value: u8,
+    pub value: u8,
     cursor: u8,
     is_selected: bool,
     title: &'static str,

@@ -1,11 +1,12 @@
 mod component;
+mod data;
 
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::prelude::*;
 
 use crate::types::Backend;
 
-use self::component::{Component, value8::Value8, list16::List16, value16::Value16, list7::List7, value7::Value7, list25::List25, value5::Value5};
+use self::{component::{Component, value8::Value8, list16::List16, value16::Value16, list7::List7, value7::Value7, list25::List25, value5::Value5}, data::{ProgramInstruction, MicroInstruction, Flags}};
 
 use super::widget::CompositeWidget;
 
@@ -86,6 +87,92 @@ impl Computer {
             _ => &mut self.address_reg, // Needed to satisfy return value
         }
     }
+
+    fn process_s(&mut self, prog_inst: &ProgramInstruction, micro_inst: &MicroInstruction) {
+        self.multiplexer = if micro_inst.s == 0 {
+            prog_inst.grx
+        } else {
+            prog_inst.m
+        }
+    }
+
+    fn process_tb(&mut self, micro_inst: &MicroInstruction) {
+        
+    }
+
+    fn process_fb(&mut self, micro_inst: &MicroInstruction) {
+        
+    }
+
+    fn process_seq(&mut self, prog_inst: &ProgramInstruction, micro_inst: &MicroInstruction, flags: &Flags) {
+        let mut set_on_condition = |condition: bool| {
+            if condition {
+                self.micro_counter.value = micro_inst.uadr;
+            } else {
+                self.micro_counter.value += 1;
+            }
+        };
+
+        match micro_inst.seq {
+            0b0000 => self.micro_counter.value += 1,
+            0b0001 => self.micro_counter.value = self.k1.values[prog_inst.op as usize],
+            0b0010 => self.micro_counter.value = self.k2.values[prog_inst.m as usize],
+            0b0011 => self.micro_counter.value = 0,
+            0b0100 => set_on_condition(flags.z == 0),
+            0b0101 => self.micro_counter.value = micro_inst.uadr,
+            0b0110 => {
+                self.saved_micro_counter.value = self.micro_counter.value;
+                self.micro_counter.value = micro_inst.uadr;
+            },
+            0b0111 => self.micro_counter.value = self.saved_micro_counter.value,
+            0b1000 => set_on_condition(flags.z == 1),
+            0b1001 => set_on_condition(flags.n == 1),
+            0b1010 => set_on_condition(flags.c == 1),
+            0b1011 => set_on_condition(flags.o == 1),
+            0b1100 => set_on_condition(flags.l == 1),
+            0b1101 => set_on_condition(flags.c == 0),
+            0b1110 => set_on_condition(flags.o == 0),
+            0b1111 => self.micro_counter.value = 0, // TODO: avbryt exekvering
+            _ => (),
+        }
+    }
+
+    fn process_alu(&mut self, micro_inst: &MicroInstruction) {
+        
+    }
+
+    fn process_lc(&mut self, micro_inst: &MicroInstruction) {
+        match micro_inst.lc {
+            0b01 => self.loop_counter.value -= 1,
+            0b10 => self.loop_counter.value = self.buss as u8,
+            0b11 => self.loop_counter.value = 0x7f | micro_inst.uadr,
+            _ => (),
+        }
+
+        if self.loop_counter.value == 0 {
+            self.flags.value &= 0b11110;
+        }
+    }
+
+    fn process_p(&mut self, micro_inst: &MicroInstruction) {
+        if micro_inst.p == 1 {
+            self.prog_counter.value += 1;
+        }
+    }
+    
+    fn perform_cycle(&mut self) {
+        let prog_inst = ProgramInstruction::new(self.instruction_reg.value);
+        let micro_inst = MicroInstruction::new(self.micro_memory.values[self.micro_counter.value as usize]);
+        let flags = Flags::new(self.flags.value);
+
+        self.process_s(&prog_inst, &micro_inst);
+        self.process_tb(&micro_inst);
+        self.process_fb(&micro_inst);
+        self.process_seq(&prog_inst, &micro_inst, &flags); // TODO: påverkas flaggor före eller efter? (process_lc och process_alu påverkar)
+        self.process_alu(&micro_inst);
+        self.process_lc(&micro_inst);
+        self.process_p(&micro_inst); // TODO: om man sätter PC med bussen, vad händer?
+    }
 }
 
 impl CompositeWidget for Computer {
@@ -98,6 +185,8 @@ impl CompositeWidget for Computer {
                 self.selection_idx + 1
             };
             self.get_selected_mut().on_select();
+        } else if key.code == KeyCode::Char(' ') { 
+            self.perform_cycle();
         } else {
             self.get_selected_mut().update(key)
         }
